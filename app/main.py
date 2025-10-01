@@ -1,7 +1,32 @@
+from datetime import date
+from typing import List, Optional
+
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, Field
+
+
+class RetroItem(BaseModel):
+    what_went_well: str = Field(description="Что прошло хорошо")
+    to_improve: str = Field(description="Что можно улучшить")
+    actions: str = Field(description="Конкретные действия на следующий спринт")
+
+
+class Retro(BaseModel):
+    id: int
+    session_date: date
+    items: List[RetroItem]
+
+
+class CreateRetroRequest(BaseModel):
+    session_date: date
+    items: List[RetroItem]
+
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
+
+_RETROS_DB: List[Retro] = []
+_RETRO_ID_COUNTER = 0
 
 
 class ApiError(Exception):
@@ -55,3 +80,91 @@ def get_item(item_id: int):
         if it["id"] == item_id:
             return it
     raise ApiError(code="not_found", message="item not found", status=404)
+
+
+@app.post("/retros", response_model=Retro, status_code=201)
+def create_retro(request: CreateRetroRequest):
+    global _RETRO_ID_COUNTER
+    _RETRO_ID_COUNTER += 1
+
+    # Валидация: дата не может быть из будущего
+    if request.session_date > date.today():
+        raise ApiError(
+            code="validation_error",
+            message="Session date cannot be in the future",
+            status=422,
+        )
+
+    new_retro = Retro(
+        id=_RETRO_ID_COUNTER,
+        session_date=request.session_date,
+        items=request.items,
+    )
+    _RETROS_DB.append(new_retro)
+    return new_retro
+
+
+@app.get("/retros", response_model=List[Retro])
+def get_all_retros(from_date: Optional[date] = None, to_date: Optional[date] = None):
+    filtered_retros = _RETROS_DB
+
+    if from_date:
+        filtered_retros = [r for r in filtered_retros if r.session_date >= from_date]
+
+    if to_date:
+        filtered_retros = [r for r in filtered_retros if r.session_date <= to_date]
+
+    return filtered_retros
+
+
+@app.get("/retros/{retro_id}", response_model=Retro)
+def get_retro_by_id(retro_id: int):
+    for retro in _RETROS_DB:
+        if retro.id == retro_id:
+            return retro
+    raise ApiError(
+        code="not_found", message=f"Retro with id={retro_id} not found", status=404
+    )
+
+
+@app.put("/retros/{retro_id}", response_model=Retro)
+def update_retro(retro_id: int, request: CreateRetroRequest):
+    for i, retro in enumerate(_RETROS_DB):
+        if retro.id == retro_id:
+            if request.session_date > date.today():
+                raise ApiError(
+                    code="validation_error",
+                    message="Session date cannot be in the future",
+                    status=422,
+                )
+
+            updated_retro = Retro(
+                id=retro_id,
+                session_date=request.session_date,
+                items=request.items,
+            )
+            _RETROS_DB[i] = updated_retro
+            return updated_retro
+
+    raise ApiError(
+        code="not_found", message=f"Retro with id={retro_id} not found", status=404
+    )
+
+
+@app.delete("/retros/{retro_id}", status_code=204)
+def delete_retro(retro_id: int):
+    global _RETROS_DB
+
+    retro_to_delete = None
+    for retro in _RETROS_DB:
+        if retro.id == retro_id:
+            retro_to_delete = retro
+            break
+
+    if retro_to_delete:
+        _RETROS_DB.remove(retro_to_delete)
+        return
+    else:
+        raise ApiError(
+            code="not_found", message=f"Retro with id={retro_id} not found", status=404
+        )
