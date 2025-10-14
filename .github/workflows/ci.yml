@@ -34,5 +34,15 @@ jobs:
       - name: Tests
         run: pytest -q
 
+      - name: Scan for vulnerabilities
+        uses: aquasecurity/trivy-action@master
+        with:
+          scan-type: 'fs'
+          scan-ref: '.'
+          format: 'table'
+          severity: 'HIGH,CRITICAL'
+          exit-code: '1'
+          ignore-unfixed: true
+
       - name: Pre-commit (all files)
         run: pre-commit run --all-files
