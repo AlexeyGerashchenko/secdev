@@ -2,6 +2,7 @@ from datetime import date
 from typing import List, Optional
 
 from fastapi import FastAPI, HTTPException, Request
+from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
@@ -24,6 +25,16 @@ class CreateRetroRequest(BaseModel):
 
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
+
+origins = ["http://localhost"]
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 _RETROS_DB: List[Retro] = []
 _RETRO_ID_COUNTER = 0
