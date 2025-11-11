@@ -189,6 +189,7 @@ def update_retro(retro_id: int, request_body: CreateRetroRequest, request: Reque
             )
             _RETROS_DB[i] = updated_retro
             return updated_retro
+
     raise ProblemDetailException(
         title="not_found", detail=f"Retro with id={retro_id} not found", status=404
     )
@@ -222,6 +223,7 @@ async def upload_attachment(retro_id: int, file: UploadFile = File(...)):
     if not retro_exists:
         raise ProblemDetailException(
             title="not_found", detail=f"Retro with id={retro_id} not found", status=404
+
         )
     try:
         contents = await file.read()
