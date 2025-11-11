@@ -34,6 +34,7 @@ def test_create_retro_success():
 
 
 def test_create_retro_future_date_error():
+    """Тест проверяет ошибку валидации в НОВОМ формате RFC 7807."""
     response = client.post(
         "/retros",
         json={
@@ -43,7 +44,10 @@ def test_create_retro_future_date_error():
     )
     assert response.status_code == 422
     body = response.json()
-    assert body["error"]["code"] == "validation_error"
+    # Проверяем новый формат
+    assert body["title"] == "Validation Error"
+    assert body["status"] == 422
+    assert "Session date cannot be in the future" in body["detail"]
 
 
 def test_get_retros_empty():
@@ -53,10 +57,14 @@ def test_get_retros_empty():
 
 
 def test_get_single_retro_not_found():
+    """Тест проверяет ошибку 404 в НОВОМ формате RFC 7807."""
     response = client.get("/retros/999")
     assert response.status_code == 404
     body = response.json()
-    assert body["error"]["code"] == "not_found"
+    # Проверяем новый формат
+    assert body["title"] == "not_found"
+    assert body["status"] == 404
+    assert "Retro with id=999 not found" in body["detail"]
 
 
 def test_full_crud_cycle():
