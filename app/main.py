@@ -223,7 +223,6 @@ async def upload_attachment(retro_id: int, file: UploadFile = File(...)):
     if not retro_exists:
         raise ProblemDetailException(
             title="not_found", detail=f"Retro with id={retro_id} not found", status=404
-
         )
     try:
         contents = await file.read()
