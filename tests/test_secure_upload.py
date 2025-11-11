@@ -89,5 +89,5 @@ def test_upload_endpoint_rejects_bad_file(tmp_path):
 
     assert response_upload.status_code == 422
     body = response_upload.json()
-    assert body["error"]["code"] == "upload_failed"
-    assert body["error"]["message"] == "Invalid file type"
+    assert body["title"] == "upload_failed"
+    assert body["detail"] == "Invalid file type"

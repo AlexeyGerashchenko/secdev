@@ -9,7 +9,6 @@ client = TestClient(app)
 
 
 def test_secret_info_endpoint_hides_secret():
-
     from app.config import settings
 
     response = client.get("/secret-info")
