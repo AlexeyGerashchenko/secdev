@@ -1,20 +1,35 @@
+import logging
 from datetime import date
-from typing import List, Optional
+from pathlib import Path
+from typing import Annotated, List, Optional
 from uuid import uuid4
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 from slowapi import Limiter, _rate_limit_exceeded_handler
 from slowapi.errors import RateLimitExceeded
 from slowapi.util import get_remote_address
 
+from .config import settings
+from .secure_upload import secure_save
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+TrimmedString = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)
+]
+
 
 class RetroItem(BaseModel):
-    what_went_well: str = Field(description="Что прошло хорошо")
-    to_improve: str = Field(description="Что можно улучшить")
-    actions: str = Field(description="Конкретные действия на следующий спринт")
+    model_config = ConfigDict(extra="forbid")
+    what_went_well: TrimmedString = Field(description="Что прошло хорошо")
+    to_improve: TrimmedString = Field(description="Что можно улучшить")
+    actions: TrimmedString = Field(
+        description="Конкретные действия на следующий спринт"
+    )
 
 
 class Retro(BaseModel):
@@ -24,8 +39,9 @@ class Retro(BaseModel):
 
 
 class CreateRetroRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
     session_date: date
-    items: List[RetroItem]
+    items: List[RetroItem] = Field(max_length=20)
 
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
@@ -45,12 +61,9 @@ app.add_middleware(
 )
 
 _RETROS_DB: List[Retro] = []
-_RETRO_ID_COUNTER = 0
 
 
 class ProblemDetailException(Exception):
-    """Кастомное исключение для генерации ошибок в формате RFC 7807."""
-
     def __init__(
         self, status: int, title: str, detail: str, type_: str = "about:blank"
     ):
@@ -97,7 +110,6 @@ def health():
     return {"status": "ok"}
 
 
-# Example minimal entity (for tests/demo)
 _DB = {"items": []}
 
 
@@ -123,16 +135,12 @@ def get_item(item_id: int):
 @limiter.limit("20/minute")
 @app.post("/retros", response_model=Retro, status_code=201)
 def create_retro(request_body: CreateRetroRequest, request: Request):
-    # global _RETROS_ID_COUNTER
-    # _RETROS_ID_COUNTER += 1
-
     if request_body.session_date > date.today():
         raise ProblemDetailException(
             status=422,
             title="Validation Error",
             detail="Session date cannot be in the future",
         )
-
     new_retro = Retro(
         id=len(_RETROS_DB) + 1,
         session_date=request_body.session_date,
@@ -145,13 +153,10 @@ def create_retro(request_body: CreateRetroRequest, request: Request):
 @app.get("/retros", response_model=List[Retro])
 def get_all_retros(from_date: Optional[date] = None, to_date: Optional[date] = None):
     filtered_retros = _RETROS_DB
-
     if from_date:
         filtered_retros = [r for r in filtered_retros if r.session_date >= from_date]
-
     if to_date:
         filtered_retros = [r for r in filtered_retros if r.session_date <= to_date]
-
     return filtered_retros
 
 
@@ -177,7 +182,6 @@ def update_retro(retro_id: int, request_body: CreateRetroRequest, request: Reque
                     detail="Session date cannot be in the future",
                     status=422,
                 )
-
             updated_retro = Retro(
                 id=retro_id,
                 session_date=request_body.session_date,
@@ -195,13 +199,11 @@ def update_retro(retro_id: int, request_body: CreateRetroRequest, request: Reque
 @app.delete("/retros/{retro_id}", status_code=204)
 def delete_retro(retro_id: int, request: Request):
     global _RETROS_DB
-
     retro_to_delete = None
     for retro in _RETROS_DB:
         if retro.id == retro_id:
             retro_to_delete = retro
             break
-
     if retro_to_delete:
         _RETROS_DB.remove(retro_to_delete)
         return
@@ -209,3 +211,29 @@ def delete_retro(retro_id: int, request: Request):
         raise ProblemDetailException(
             title="not_found", detail=f"Retro with id={retro_id} not found", status=404
         )
+
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+
+@app.post("/retros/{retro_id}/attachments")
+async def upload_attachment(retro_id: int, file: UploadFile = File(...)):
+    retro_exists = any(r.id == retro_id for r in _RETROS_DB)
+    if not retro_exists:
+        raise ProblemDetailException(
+            title="not_found", detail=f"Retro with id={retro_id} not found", status=404
+        )
+    try:
+        contents = await file.read()
+        saved_path = secure_save(UPLOAD_DIR, contents)
+        return {"filename": saved_path.name, "content_type": file.content_type}
+    except ValueError as e:
+        raise ProblemDetailException(title="upload_failed", detail=str(e), status=422)
+
+
+@app.get("/secret-info")
+def get_secret_info():
+    key_length = len(settings.SECRET_KEY)
+    logger.info(f"Sensitive info of length {key_length} is being used.")
+    return {"message": "Sensitive info processed successfully"}
