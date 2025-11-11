@@ -1,16 +1,32 @@
+import logging
 from datetime import date
-from typing import List, Optional
+from pathlib import Path
+from typing import Annotated, List, Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import FastAPI, File, HTTPException, Request, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+
+from .config import settings
+from .secure_upload import secure_save
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+TrimmedString = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=2048)
+]
 
 
 class RetroItem(BaseModel):
-    what_went_well: str = Field(description="Что прошло хорошо")
-    to_improve: str = Field(description="Что можно улучшить")
-    actions: str = Field(description="Конкретные действия на следующий спринт")
+    model_config = ConfigDict(extra="forbid")
+
+    what_went_well: TrimmedString = Field(description="Что прошло хорошо")
+    to_improve: TrimmedString = Field(description="Что можно улучшить")
+    actions: TrimmedString = Field(
+        description="Конкретные действия на следующий спринт"
+    )
 
 
 class Retro(BaseModel):
@@ -20,8 +36,10 @@ class Retro(BaseModel):
 
 
 class CreateRetroRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
     session_date: date
-    items: List[RetroItem]
+    items: List[RetroItem] = Field(max_length=20)
 
 
 app = FastAPI(title="SecDev Course App", version="0.1.0")
@@ -179,3 +197,35 @@ def delete_retro(retro_id: int):
         raise ApiError(
             code="not_found", message=f"Retro with id={retro_id} not found", status=404
         )
+
+
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+
+@app.post("/retros/{retro_id}/attachments")
+async def upload_attachment(retro_id: int, file: UploadFile = File(...)):
+    retro_exists = any(r.id == retro_id for r in _RETROS_DB)
+    if not retro_exists:
+        raise ApiError(
+            code="not_found", message=f"Retro with id={retro_id} not found", status=404
+        )
+
+    try:
+        contents = await file.read()
+
+        saved_path = secure_save(UPLOAD_DIR, contents)
+
+        return {"filename": saved_path.name, "content_type": file.content_type}
+
+    except ValueError as e:
+        raise ApiError(code="upload_failed", message=str(e), status=422)
+
+
+@app.get("/secret-info")
+def get_secret_info():
+    key_length = len(settings.SECRET_KEY)
+
+    logger.info(f"Sensitive info of length {key_length} is being used.")
+
+    return {"message": "Sensitive info processed successfully"}

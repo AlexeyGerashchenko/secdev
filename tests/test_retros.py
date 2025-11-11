@@ -1,3 +1,4 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.main import _RETROS_DB, app
@@ -87,3 +88,58 @@ def test_full_crud_cycle():
 
     response = client.get(f"/retros/{retro_id}")
     assert response.status_code == 404
+
+
+@pytest.mark.parametrize(
+    "field, value, error_part",
+    [
+        ("what_went_well", "", "String should have at least 1 character"),
+        ("to_improve", "a" * 3000, "String should have at most 2048 characters"),
+        ("actions", " ", "String should have at least 1 character"),
+    ],
+)
+def test_create_retro_fails_on_invalid_string_length(field, value, error_part):
+    """Негативный тест: проверяет отказ при некорректной длине строки."""
+    retro_data = {
+        "session_date": "2024-08-15",
+        "items": [
+            {
+                "what_went_well": "Good sprint",
+                "to_improve": "Docs",
+                "actions": "Write docs",
+            }
+        ],
+    }
+    retro_data["items"][0][field] = value
+
+    response = client.post("/retros", json=retro_data)
+
+    assert response.status_code == 422
+    assert error_part in response.text
+
+
+def test_create_retro_fails_on_too_many_items():
+    """Негативный тест: проверяет отказ при слишком большом количестве items."""
+    too_many_items = [{"what_went_well": "a", "to_improve": "b", "actions": "c"}] * 21
+
+    retro_data = {
+        "session_date": "2024-08-15",
+        "items": too_many_items,
+    }
+    response = client.post("/retros", json=retro_data)
+
+    assert response.status_code == 422
+    assert "List should have at most 20 items" in response.text
+
+
+def test_create_retro_fails_on_extra_field():
+    """Негативный тест: проверяет отказ при наличии лишнего поля в запросе."""
+    retro_data = {
+        "session_date": "2024-08-15",
+        "items": [],
+        "unexpected_field": "this should be rejected",
+    }
+    response = client.post("/retros", json=retro_data)
+
+    assert response.status_code == 422
+    assert "Extra inputs are not permitted" in response.text
