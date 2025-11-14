@@ -1,0 +1,41 @@
+# glibc
+CVE-2025-4802
+
+# libexpat1
+CVE-2024-45491
+CVE-2024-45492
+CVE-2023-52425
+CVE-2024-45490
+CVE-2024-8176
+
+# libgnutls30
+CVE-2025-32988
+CVE-2025-32990
+
+# libldap-2.5-0
+CVE-2023-2953
+
+# liblzma5
+CVE-2025-31115
+
+# libpam-*
+CVE-2025-6020
+
+# libsqlite3-0
+CVE-2025-6965
+CVE-2025-7458
+CVE-2023-7104
+
+# perl-base
+CVE-2023-31484
+CVE-2024-56406
+
+# zlib1g
+CVE-2023-45853
+
+
+# --- Python Packages ---
+
+# setuptools
+CVE-2024-6345
+CVE-2025-47273

@@ -1,20 +1,37 @@
-# Build stage
-FROM python:3.11-slim AS build
+FROM python:3.11.9-slim-bookworm AS builder
 WORKDIR /app
-COPY requirements.txt requirements-dev.txt ./
-RUN pip install --no-cache-dir -r requirements.txt -r requirements-dev.txt
-COPY . .
-RUN pytest -q
 
-# Runtime stage
-FROM python:3.11-slim
+RUN pip install --no-cache-dir --upgrade pip==24.0 wheel==0.43.0
+
+COPY requirements.txt .
+
+RUN pip wheel --no-cache-dir --wheel-dir=/wheels -r requirements.txt
+
+
+FROM python:3.11.9-slim-bookworm AS final
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1
+
 WORKDIR /app
-RUN useradd -m appuser
-COPY --from=build /usr/local/lib/python3.11 /usr/local/lib/python3.11
-COPY --from=build /usr/local/bin /usr/local/bin
-COPY . .
-EXPOSE 8000
-HEALTHCHECK CMD curl -f http://localhost:8000/health || exit 1
+
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+
+RUN apt-get update && \
+    apt-cache policy curl && \
+    apt-get install -y --no-install-recommends curl && \
+    rm -rf /var/lib/apt/lists/*
+
+COPY --from=builder /wheels /wheels
+
+RUN pip install --no-cache-dir /wheels/*
+
+COPY --chown=appuser:appgroup ./app ./app
+
+RUN mkdir uploads && chown -R appuser:appgroup /app/uploads
+
 USER appuser
-ENV PYTHONUNBUFFERED=1
+EXPOSE 8000
+HEALTHCHECK --interval=15s --timeout=3s --start-period=5s --retries=3 \
+  CMD curl -f http://localhost:8000/health || exit 1
+
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
