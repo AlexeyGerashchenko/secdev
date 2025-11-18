@@ -29,7 +29,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           pip install -r requirements.txt -r requirements-dev.txt
-          # Убедимся, что pre-commit установлен, если он не в requirements
+          # Убедимся, что pre-commit есть, если он вдруг не в requirements
           pip install pre-commit
 
       - name: Lint & Format
@@ -46,7 +46,7 @@ jobs:
           mkdir -p reports
           pytest -q --junitxml=reports/junit.xml
 
-      - name: Scan for vulnerabilities (Trivy)
+      - name: Scan for vulnerabilities
         uses: aquasecurity/trivy-action@master
         with:
           scan-type: 'fs'
@@ -76,4 +76,4 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Mock Deploy
-        run: echo "Deploying to staging... Done."
+        run: echo "Starting deployment to staging... Success."
