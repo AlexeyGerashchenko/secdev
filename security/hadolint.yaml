@@ -1,5 +1,3 @@
 # Пример базового конфига Hadolint для курса.
-ignored: []
-# Пример игнорирования:
-# ignored:
-#   - DL3008
+ignored:
+  - DL3008 # Ignore version pinning for apt-get packages
