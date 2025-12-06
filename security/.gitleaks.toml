@@ -6,6 +6,7 @@ title = "course default gitleaks config"
 description = "ignore non-sensitive patterns"
 paths = [
   "EVIDENCE/",
+  "tests/",
 ]
 commits = []
 regexes = [
