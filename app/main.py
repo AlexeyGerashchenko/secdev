@@ -237,3 +237,8 @@ def get_secret_info():
     key_length = len(settings.SECRET_KEY)
     logger.info(f"Sensitive info of length {key_length} is being used.")
     return {"message": "Sensitive info processed successfully"}
+
+
+@app.get("/healthz")
+def healthz():
+    return {"status": "ok"}
