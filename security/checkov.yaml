@@ -1,0 +1,9 @@
+# Пример базового конфига Checkov для курса.
+quiet: false
+compact: true
+framework:
+  - kubernetes
+  - terraform
+  - dockerfile
+
+skip-check: []
